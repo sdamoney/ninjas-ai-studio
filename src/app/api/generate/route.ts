@@ -1,6 +1,18 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextRequest } from "next/server";
 
+// In-memory IP generation tracker (resets on server restart)
+const ipGenerationCount = new Map<string, number>();
+const MAX_GENERATIONS = 3;
+
+function getClientIp(request: NextRequest): string {
+  const forwarded = request.headers.get("x-forwarded-for");
+  if (forwarded) {
+    return forwarded.split(",")[0].trim();
+  }
+  return request.headers.get("x-real-ip") || "unknown";
+}
+
 const COMICAL_STYLES = [
   "Transform this person into a medieval knight posing for a royal court portrait. They should be wearing full ornate plate armor with an oversized feathered helmet plume, holding a rubber chicken instead of a sword, with a completely serious and dignified expression. The background should be a grand castle throne room. Make it look like a professional oil painting portrait.",
 
@@ -67,6 +79,20 @@ const COMICAL_STYLES = [
 
 export async function POST(request: NextRequest) {
   try {
+    // Rate limit by IP
+    const clientIp = getClientIp(request);
+    const currentCount = ipGenerationCount.get(clientIp) || 0;
+
+    if (currentCount >= MAX_GENERATIONS) {
+      return Response.json(
+        {
+          error: "You've used all 3 free generations!",
+          limitReached: true,
+        },
+        { status: 429 }
+      );
+    }
+
     const formData = await request.formData();
     const imageFile = formData.get("image") as File | null;
 
@@ -124,9 +150,13 @@ IMPORTANT: Keep the person's face clearly recognizable — same face shape, feat
 
     for (const part of candidates[0].content.parts) {
       if (part.inlineData) {
+        // Increment generation count on success
+        ipGenerationCount.set(clientIp, currentCount + 1);
+
         return Response.json({
           image: `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`,
           style: style.split(".")[0],
+          generationsLeft: MAX_GENERATIONS - (currentCount + 1),
         });
       }
     }
