@@ -77,6 +77,8 @@ const COMICAL_STYLES = [
   "Transform this person into a 1990s boy band member. Give them frosted tips, a matching coordinated outfit (shiny silver or white), a choker necklace, a backwards cap or headband, and they should be doing a choreographed dance pose pointing at the camera with one hand on their heart. Studio photoshoot background with dramatic wind effect on their hair.",
 ];
 
+export const maxDuration = 60;
+
 export async function POST(request: NextRequest) {
   try {
     // Rate limit by IP
